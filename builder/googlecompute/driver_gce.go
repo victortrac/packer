@@ -111,6 +111,45 @@ func (d *driverGCE) CreateImage(name, description, family, zone, disk string) <-
 	return errCh
 }
 
+func (d *driverGCE) CreateFirewallRule(f *FirewallRule) (<- chan error, error) {
+	errCh := make(chan error, 1)
+	op, err := d.service.Firewalls.Insert(d.projectId, &compute.Firewall{
+		Allowed: f.Allowed,
+		Description: f.Description,
+		Name: f.Name,
+		Network: f.Network,
+		SourceRanges: f.SourceRanges,
+		TargetTags: f.TargetTags,
+	}).Do()
+	if err != nil {
+		errCh <- err
+	} else {
+		go waitForState(errCh, "DONE", d.refreshGlobalOp(op))
+	}
+}
+
+func (d *driverGCE) DeleteDisk(zone, name string) (<-chan error, error) {
+	op, err := d.service.Disks.Delete(d.projectId, zone, name).Do()
+	if err != nil {
+		return nil, err
+	}
+
+	errCh := make(chan error, 1)
+	go waitForState(errCh, "DONE", d.refreshZoneOp(zone, op))
+	return errCh, nil
+}
+
+func (d *driverGCE) DeleteFirewallRule(name string) (<-chan error, error) {
+	errCh := make(chan error, 1)
+	op, err := d.service.Firewalls.Delete(d.projectId, name).Do()
+	if err != nil {
+		errCh <- err
+	} else {
+		go waitForState(errCh, "DONE", d.refreshGlobalOp(op))
+	}
+	return errCh, nil
+}
+
 func (d *driverGCE) DeleteImage(name string) <-chan error {
 	errCh := make(chan error, 1)
 	op, err := d.service.Images.Delete(d.projectId, name).Do()
@@ -119,8 +158,7 @@ func (d *driverGCE) DeleteImage(name string) <-chan error {
 	} else {
 		go waitForState(errCh, "DONE", d.refreshGlobalOp(op))
 	}
-
-	return errCh
+	return errCh, nil
 }
 
 func (d *driverGCE) DeleteInstance(zone, name string) (<-chan error, error) {
@@ -134,16 +172,6 @@ func (d *driverGCE) DeleteInstance(zone, name string) (<-chan error, error) {
 	return errCh, nil
 }
 
-func (d *driverGCE) DeleteDisk(zone, name string) (<-chan error, error) {
-	op, err := d.service.Disks.Delete(d.projectId, zone, name).Do()
-	if err != nil {
-		return nil, err
-	}
-
-	errCh := make(chan error, 1)
-	go waitForState(errCh, "DONE", d.refreshZoneOp(zone, op))
-	return errCh, nil
-}
 
 func (d *driverGCE) GetNatIP(zone, name string) (string, error) {
 	instance, err := d.service.Instances.Get(d.projectId, zone, name).Do()

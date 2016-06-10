@@ -1,5 +1,9 @@
 package googlecompute
 
+import (
+	"google.golang.org/api/compute/v1"
+)
+
 // Driver is the interface that has to be implemented to communicate
 // with GCE. The Driver interface exists mostly to allow a mock implementation
 // to be used to test the steps.
@@ -12,14 +16,21 @@ type Driver interface {
 	// Engine.
 	CreateImage(name, description, family, zone, disk string) <-chan error
 
+	// CreateFirewallRule creates a firewall rule to allow the process running
+	// packer access to the instance
+	CreateFirewallRule(*FirewallRule) (<- chan error, error)
+
+	// DeleteDisk deletes the disk with the given name.
+	DeleteDisk(zone, name string) (<-chan error, error)
+
+	// DeleteFirewallRule cleans up the temporary firewall rule
+	DeleteFirewallRule(name string) (<-chan error, error)
+
 	// DeleteImage deletes the image with the given name.
 	DeleteImage(name string) <-chan error
 
 	// DeleteInstance deletes the given instance, keeping the boot disk.
 	DeleteInstance(zone, name string) (<-chan error, error)
-
-	// DeleteDisk deletes the disk with the given name.
-	DeleteDisk(zone, name string) (<-chan error, error)
 
 	// GetNatIP gets the NAT IP address for the instance.
 	GetNatIP(zone, name string) (string, error)
@@ -54,4 +65,13 @@ type InstanceConfig struct {
 	Tags        []string
 	Region      string
 	Zone        string
+}
+
+type FirewallRule struct {
+	Allowed 	[]compute.FirewallAllowed
+	Description 	string
+	Name		string
+	Network 	string
+	SourceRanges 	[]string
+	TargetTags 	[]string
 }
